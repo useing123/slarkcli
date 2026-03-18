@@ -1,7 +1,7 @@
 [project]
-name = "slark"
-version = "0.1.0"
-description = "Add your description here"
+name = "slarkcli"
+version = "0.0.1"
+description = "Coding terminal agent"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
