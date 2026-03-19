@@ -4,7 +4,7 @@ import json
 
 from providers.openrouter import OpenRouterProvider
 
-CONTEXT_MODEL = "deepseek/deepseek-chat"
+CONTEXT_MODEL = "deepseek/deepseek-v3.2"
 PRUNE_THRESHOLD = 80_000
 
 

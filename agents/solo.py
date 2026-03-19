@@ -6,6 +6,7 @@ from agents.context import PRUNE_THRESHOLD, prune
 from agents.interrupt import InterruptHandler
 from providers.openrouter import OpenRouterProvider
 from tools.edit import EDIT_TOOLS, create_dir, move_to_garbage, str_replace, write_file
+from tools.index import INDEX_TOOLS, get_file_symbols, index_summary, search_symbol
 from tools.read import READ_TOOLS, outline, read_file, read_lines, tree
 from tools.run import (
     RUN_TOOLS,
@@ -17,7 +18,9 @@ from tools.run import (
 from tools.search import SEARCH_TOOLS, find_definition, grep
 from tools.tasks import TASK_TOOLS, create_task, list_tasks, update_task
 
-ALL_TOOLS = READ_TOOLS + EDIT_TOOLS + SEARCH_TOOLS + RUN_TOOLS + TASK_TOOLS
+ALL_TOOLS = (
+    READ_TOOLS + EDIT_TOOLS + SEARCH_TOOLS + RUN_TOOLS + TASK_TOOLS + INDEX_TOOLS
+)
 
 PRICE_IN = 0.27 / 1_000_000
 PRICE_OUT = 0.79 / 1_000_000
@@ -66,6 +69,12 @@ async def execute(name: str, inputs: dict, working_dir: Path, session_id: str) -
             return kill_background(inputs["name"])
         case "check_port":
             return check_port(inputs["port"])
+        case "search_symbol":
+            return await search_symbol(inputs["name"], working_dir)
+        case "get_file_symbols":
+            return await get_file_symbols(inputs["path"], working_dir)
+        case "index_summary":
+            return await index_summary(working_dir)
         case "create_task":
             return await create_task(
                 session_id, inputs["title"], inputs.get("description", "")

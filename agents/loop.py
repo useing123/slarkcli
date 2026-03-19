@@ -13,6 +13,7 @@ from memory.database import (
 )
 from memory.history import History
 from providers.openrouter import OpenRouterProvider
+from tools.index import build, init_index
 
 load_dotenv()
 
@@ -26,6 +27,10 @@ async def start(working_dir: Path):
         return
 
     await init()
+    await init_index()
+    print("  🗺 indexing project...")
+    result = await build(working_dir)
+    print(f"  ✓ {result['files']} files, {result['symbols']} symbols indexed")
     await close_abandoned_tasks(str(working_dir))
     session_id = await new_session(working_dir)
     provider = OpenRouterProvider(api_key=API_KEY, model=MODEL)
@@ -60,6 +65,11 @@ async def start(working_dir: Path):
         if task == "/cost":
             cost = estimate_cost(session_in, session_out)
             print(f"Session: {session_in} in / {session_out} out tokens | ~${cost:.4f}")
+            continue
+
+        if task == "/init":
+            result = await build(working_dir)
+            print(f"Indexed {result['files']} files, {result['symbols']} symbols")
             continue
 
         history.add_user(task)
