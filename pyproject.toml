@@ -8,5 +8,6 @@ dependencies = [
     "aiosqlite>=0.22.1",
     "openai>=2.26.0",
     "pathspec>=1.0.4",
+    "prompt-toolkit>=3.0.52",
     "python-dotenv>=1.2.2",
 ]

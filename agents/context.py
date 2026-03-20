@@ -1,14 +1,11 @@
-# agents/context.py
-
 import json
 
-from providers.openrouter import OpenRouterProvider
+from config import Config
+from providers.base import BaseProvider
 
-CONTEXT_MODEL = "deepseek/deepseek-v3.2"
 PRUNE_THRESHOLD = 80_000
 
 
-# rough token estimate
 def _estimate_tokens(ctx: list[dict]) -> int:
     total = 0
     for msg in ctx:
@@ -18,7 +15,7 @@ def _estimate_tokens(ctx: list[dict]) -> int:
 
 
 async def prune(
-    ctx: list[dict], provider: OpenRouterProvider, current_task: str = ""
+    ctx: list[dict], provider: BaseProvider, current_task: str = ""
 ) -> list[dict]:
     estimated = _estimate_tokens(ctx)
     if estimated < PRUNE_THRESHOLD:
@@ -60,12 +57,11 @@ If nothing should be cleared, return: []
     raw = response["content"].strip()
 
     try:
-        # strip markdown fences if model wrapped in ```json
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
         to_clear: list[str] = json.loads(raw)
     except (json.JSONDecodeError, ValueError):
-        return ctx  # if parsing fails — do nothing, safe fallback
+        return ctx
 
     if not to_clear:
         return ctx

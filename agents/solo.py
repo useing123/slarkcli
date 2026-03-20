@@ -3,8 +3,8 @@ import os
 from pathlib import Path
 
 from agents.context import PRUNE_THRESHOLD, prune
-from agents.interrupt import InterruptHandler
-from providers.openrouter import OpenRouterProvider
+from config import Config
+from providers.base import BaseProvider
 from tools.edit import EDIT_TOOLS, create_dir, move_to_garbage, str_replace, write_file
 from tools.index import INDEX_TOOLS, get_file_symbols, index_summary, search_symbol
 from tools.read import READ_TOOLS, outline, read_file, read_lines, tree
@@ -22,15 +22,15 @@ ALL_TOOLS = (
     READ_TOOLS + EDIT_TOOLS + SEARCH_TOOLS + RUN_TOOLS + TASK_TOOLS + INDEX_TOOLS
 )
 
-PRICE_IN = 0.27 / 1_000_000
-PRICE_OUT = 0.79 / 1_000_000
-LARGE_CONTEXT = 50_000
 DONE_SIGNAL = "[DONE]"
 TRACE_DIR = Path.home() / ".slark" / "traces"
 
 
-def estimate_cost(input_tokens: int, output_tokens: int) -> float:
-    return input_tokens * PRICE_IN + output_tokens * PRICE_OUT
+def estimate_cost(
+    input_tokens: int, output_tokens: int, config: Config = None
+) -> float:
+    cfg = config or Config.load()
+    return input_tokens * cfg.price_in + output_tokens * cfg.price_out
 
 
 async def execute(name: str, inputs: dict, working_dir: Path, session_id: str) -> str:
@@ -88,12 +88,15 @@ async def execute(name: str, inputs: dict, working_dir: Path, session_id: str) -
 
 
 async def ask(
-    provider: OpenRouterProvider,
+    provider: BaseProvider,
     messages: list[dict],
     working_dir: Path,
     session_id: str,
-    interrupt: InterruptHandler | None = None,
+    config: Config = None,
+    on_tool: callable = None,
+    on_token: callable = None,
 ) -> tuple[str, int, int]:
+    cfg = config or Config.load()
     ctx = list(messages)
     total_in, total_out = 0, 0
     iteration = 0
@@ -111,41 +114,36 @@ async def ask(
             )
 
         response = await provider.complete(messages=ctx, tools=ALL_TOOLS)
-        print(f"  DEBUG: content={repr(response['content'])[:100]}")
-        print(f"  DEBUG: tool_calls={len(response['tool_calls'])}")
-        print(
-            f"  DEBUG: reasoning={repr(response.get('reasoning'))[:100] if response.get('reasoning') else None}"
-        )
 
         if response.get("reasoning"):
             print(f"\n  🧠 thinking:\n{response['reasoning']}\n")
 
-        print(
-            f"  📊 response tokens: in={response['input_tokens']} out={response['output_tokens']} ctx_msgs={len(ctx)}"
-        )
+        if on_token:
+            on_token(response["input_tokens"], response["output_tokens"], len(ctx))
+        else:
+            print(
+                f"  📊 {response['input_tokens']} in / {response['output_tokens']} out | ctx={len(ctx)}"
+            )
+
         total_in += response["input_tokens"]
         total_out += response["output_tokens"]
         iteration += 1
 
         content = response["content"] or ""
 
-        # check done signal
         if DONE_SIGNAL in content:
-            clean = content.replace(DONE_SIGNAL, "").strip()
-            return clean, total_in, total_out
+            return content.replace(DONE_SIGNAL, "").strip(), total_in, total_out
 
-        # no tool calls — agent finished without signal
         if not response["tool_calls"]:
             return content, total_in, total_out
 
-        # check iteration limits
-        max_iter = 10 if total_in > LARGE_CONTEXT else 20
+        max_iter = 10 if total_in > cfg.large_context else 20
         if iteration >= max_iter:
-            if total_in > LARGE_CONTEXT:
-                cost = estimate_cost(total_in, total_out)
+            if total_in > cfg.large_context:
+                cost = estimate_cost(total_in, total_out, cfg)
                 confirm = (
                     input(
-                        f"\n⚠️  Large context ({total_in} tokens | ~${cost:.4f} so far). Continue? [y/N] "
+                        f"\n⚠️  Large context ({total_in} tokens | ~${cost:.4f}). Continue? [y/N] "
                     )
                     .strip()
                     .lower()
@@ -156,7 +154,6 @@ async def ask(
             else:
                 return "Max iterations reached.", total_in, total_out
 
-        # append assistant message
         ctx.append(
             {
                 "role": "assistant",
@@ -175,18 +172,29 @@ async def ask(
             }
         )
 
-        # execute tools
         for tc in response["tool_calls"]:
             name = tc.function.name
-            inputs = json.loads(tc.function.arguments)
+            try:
+                inputs = json.loads(tc.function.arguments)
+                if not isinstance(inputs, dict):
+                    inputs = {}
+            except (json.JSONDecodeError, ValueError):
+                inputs = {}
 
-            print(f"  🔧 {name}({inputs})")
-            result = await execute(name, inputs, working_dir, session_id)
+            if on_tool:
+                on_tool(name, inputs)
+            else:
+                print(f"  🔧 {name}({inputs})")
 
-            ctx.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tc.id,
-                    "content": result,
-                }
-            )
+            try:
+                result = await execute(name, inputs, working_dir, session_id)
+            except (KeyError, TypeError) as e:
+                result = json.dumps(
+                    {
+                        "status": "error",
+                        "tool": name,
+                        "reason": f"invalid arguments: {e}",
+                    }
+                )
+
+            ctx.append({"role": "tool", "tool_call_id": tc.id, "content": result})
