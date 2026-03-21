@@ -1,21 +1,27 @@
-from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletionMessageParam
+from openai import AsyncAzureOpenAI
 from rich.console import Console
 
 console = Console()
 
 
-class OpenRouterProvider:
-    def __init__(self, api_key: str, model: str):
-        self.model = model
-        self.client = AsyncOpenAI(
+class AzureProvider:
+    def __init__(
+        self,
+        api_key: str,
+        endpoint: str,
+        deployment: str,
+        api_version: str = "2024-12-01-preview",
+    ):
+        self.model = deployment
+        self.client = AsyncAzureOpenAI(
             api_key=api_key,
-            base_url="https://openrouter.ai/api/v1",
+            azure_endpoint=endpoint,
+            api_version=api_version,
         )
 
     async def complete(
         self,
-        messages: list[ChatCompletionMessageParam],
+        messages: list[dict],
         tools: list[dict],
         stream: bool = True,
     ) -> dict:
@@ -24,7 +30,6 @@ class OpenRouterProvider:
             messages=messages,
             tools=tools or None,
             tool_choice="auto" if tools else None,
-            extra_body={"provider": {"data_collection": "deny"}},
         )
 
         if stream:
@@ -68,7 +73,6 @@ class OpenRouterProvider:
 
             delta = chunk.choices[0].delta
 
-            # Reasoning (R1) — stream live
             reasoning_delta = getattr(delta, "reasoning_content", None)
             if reasoning_delta:
                 if not in_reasoning:
@@ -77,7 +81,6 @@ class OpenRouterProvider:
                 console.print(reasoning_delta, end="", markup=False)
                 reasoning_chunks.append(reasoning_delta)
 
-            # Regular content — stream live
             if delta.content:
                 if in_reasoning:
                     console.print("\n")
@@ -87,7 +90,6 @@ class OpenRouterProvider:
                 console.print(delta.content, end="", markup=False)
                 content_chunks.append(delta.content)
 
-            # Tool calls — accumulate fragments across chunks
             if delta.tool_calls:
                 for tc_delta in delta.tool_calls:
                     idx = tc_delta.index
@@ -131,8 +133,6 @@ class _ToolCallFunction:
 
 
 class _ToolCall:
-    """Mimics openai ToolCall object so solo.py works without changes."""
-
     def __init__(self, raw: dict):
         self.id = raw["id"]
         self.type = "function"

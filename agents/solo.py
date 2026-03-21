@@ -113,17 +113,21 @@ async def ask(
                 json.dumps(ctx, indent=2, ensure_ascii=False)
             )
 
-        response = await provider.complete(messages=ctx, tools=ALL_TOOLS)
+        # Workers (spawned by orchestrator) skip streaming to avoid output clutter
+        # Regular solo calls use streaming
+        is_worker = on_tool is not None
+        response = await provider.complete(
+            messages=ctx, tools=ALL_TOOLS, stream=not is_worker
+        )
 
-        if response.get("reasoning"):
-            print(f"\n  🧠 thinking:\n{response['reasoning']}\n")
-
+        # Only print token stats when not streaming (streaming already printed content)
         if on_token:
             on_token(response["input_tokens"], response["output_tokens"], len(ctx))
-        else:
+        elif is_worker:
             print(
                 f"  📊 {response['input_tokens']} in / {response['output_tokens']} out | ctx={len(ctx)}"
             )
+        # streaming case: provider already printed content + reasoning live
 
         total_in += response["input_tokens"]
         total_out += response["output_tokens"]

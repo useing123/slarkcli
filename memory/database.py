@@ -30,6 +30,7 @@ async def init():
                 title       TEXT NOT NULL,
                 description TEXT,
                 status      TEXT DEFAULT 'pending',
+                assigned_to TEXT DEFAULT NULL,
                 created_at  TEXT NOT NULL,
                 updated_at  TEXT NOT NULL
             );
@@ -41,6 +42,14 @@ async def init():
                 created_at TEXT NOT NULL
             );
         """)
+        # Migration: add assigned_to if it doesn't exist yet
+        try:
+            await db.execute(
+                "ALTER TABLE tasks ADD COLUMN assigned_to TEXT DEFAULT NULL"
+            )
+            await db.commit()
+        except Exception:
+            pass  # column already exists
         await db.commit()
 
 
@@ -57,10 +66,7 @@ async def new_session(working_dir: Path) -> str:
 
 
 async def get_or_create_session(working_dir: Path) -> tuple[str, list[dict]]:
-    """
-    Returns the last empty session of the project (if any) or creates a new one.
-    Also returns the message history (empty for a new session).
-    """
+    """Returns the last empty session or the last session with messages. Creates new if none exist."""
     project_dir = str(working_dir)
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -109,7 +115,6 @@ async def get_or_create_session(working_dir: Path) -> tuple[str, list[dict]]:
 
 
 async def clear_session_messages(session_id: str):
-    """Deletes all messages from the session from the database (the session remains)."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
         await db.commit()
