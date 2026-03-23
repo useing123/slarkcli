@@ -3,6 +3,8 @@ from pathlib import Path
 import aiosqlite
 
 from config import Config
+from config.loader import load_config
+from config.wizard import setup_wizard
 from memory.database import DB_PATH, close_abandoned_tasks, get_or_create_session, init
 from memory.history import History
 from tools.index import build, init_index
@@ -58,14 +60,14 @@ def get_provider(config: Config):
 
 
 async def bootstrap(working_dir: Path) -> dict:
-    config = Config.load()
+    config = load_config()
 
     needs_setup = (config.provider == "openrouter" and not config.openrouter_key) or (
         config.provider == "azure"
         and (not config.azure_key or not config.azure_endpoint)
     )
     if needs_setup:
-        config = Config.setup_wizard()
+        config = setup_wizard()
 
     await init()
     await init_index()

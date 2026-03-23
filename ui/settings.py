@@ -1,14 +1,10 @@
-"""
-Interactive /settings menu — no need to edit config.toml manually.
-Changes apply immediately without restart.
-"""
-
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from rich.console import Console
 from rich.table import Table
 
-from config import Config
+from config.model import Config
+from config.serializer import save_config
 
 console = Console()
 
@@ -61,6 +57,7 @@ def _show_current(config: Config):
             else ("set" if k else "[red]not set[/red]")
         )
         table.add_row("openrouter key", display)
+
     elif config.provider == "azure":
         k = config.azure_key
         display = (
@@ -80,9 +77,11 @@ def _show_current(config: Config):
 
 
 async def _ask(
-    session: PromptSession, question: str, default: str = "", completer=None
+    session: PromptSession,
+    question: str,
+    default: str = "",
+    completer=None,
 ) -> str:
-    """Async prompt with default value shown in brackets."""
     display = f"{question} [{default}]: " if default else f"{question}: "
     try:
         val = await session.prompt_async(display, completer=completer)
@@ -92,8 +91,8 @@ async def _ask(
 
 
 async def run_settings(config: Config) -> tuple[Config, bool]:
-    """Show settings menu, return (updated_config, was_changed)."""
     _show_current(config)
+
     console.print("[dim]Leave blank to keep current value. Ctrl+C to cancel.[/dim]")
     console.print()
 
@@ -146,7 +145,9 @@ async def run_settings(config: Config) -> tuple[Config, bool]:
 
         console.print("[dim]  paste full key or leave blank to keep[/dim]")
         new_key = await _ask(
-            session, "openrouter api key", "********" if config.openrouter_key else ""
+            session,
+            "openrouter api key",
+            "********" if config.openrouter_key else "",
         )
         if new_key and new_key != "********":
             config.openrouter_key = new_key
@@ -170,7 +171,9 @@ async def run_settings(config: Config) -> tuple[Config, bool]:
             changed = True
 
         new_api_version = await _ask(
-            session, "azure api version", config.azure_api_version
+            session,
+            "azure api version",
+            config.azure_api_version,
         )
         if new_api_version != config.azure_api_version:
             config.azure_api_version = new_api_version
@@ -178,7 +181,9 @@ async def run_settings(config: Config) -> tuple[Config, bool]:
 
         console.print("[dim]  paste full key or leave blank to keep[/dim]")
         new_key = await _ask(
-            session, "azure api key", "********" if config.azure_key else ""
+            session,
+            "azure api key",
+            "********" if config.azure_key else "",
         )
         if new_key and new_key != "********":
             config.azure_key = new_key
@@ -186,8 +191,11 @@ async def run_settings(config: Config) -> tuple[Config, bool]:
 
     # Context
     new_prune = await _ask(
-        session, "prune threshold (tokens)", str(config.prune_threshold)
+        session,
+        "prune threshold (tokens)",
+        str(config.prune_threshold),
     )
+
     try:
         val = int(new_prune)
         if val != config.prune_threshold:
@@ -197,7 +205,7 @@ async def run_settings(config: Config) -> tuple[Config, bool]:
         pass
 
     if changed:
-        config.save()
+        save_config(config)
         console.print()
         console.print("[green]✓ Settings saved to ~/.slark/config.toml[/green]")
     else:

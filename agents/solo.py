@@ -8,6 +8,7 @@ from agents.core.executor import execute_tool_calls
 from agents.core.messages import build_assistant_message
 from agents.core.trace import trace_context
 from config import Config
+from config.loader import load_config
 from providers.base import BaseProvider
 from tools.catalog import ALL_TOOLS
 
@@ -17,7 +18,7 @@ DONE_SIGNAL = "[DONE]"
 def estimate_cost(
     input_tokens: int, output_tokens: int, config: Config = None
 ) -> float:
-    cfg = config or Config.load()
+    cfg = config or load_config()
     return input_tokens * cfg.price_in + output_tokens * cfg.price_out
 
 
@@ -29,7 +30,7 @@ async def ask(
     config: Config = None,
     on_tool: callable = None,
 ) -> tuple[str, int, int]:
-    cfg = config or Config.load()
+    cfg = config or load_config()
     ctx = list(messages)
 
     total_in, total_out = 0, 0
