@@ -219,8 +219,25 @@ async def start(working_dir: Path):
         history.add_user(expanded_task)
         await save_message(session_id, "user", task)
 
+        def _on_tool(event, name, data):
+            if event == "start":
+                console.print(f"[dim]→ {name}[/dim]")
+            elif event == "end":
+                console.print(f"[dim]← {name} done[/dim]")
+                if isinstance(data, str) and len(data) > 200:
+                    console.print(f"[dim]{data[:200]}...[/dim]")
+                else:
+                    console.print(f"[dim]{data}[/dim]")
+
         result, interrupted = await _run_with_interrupt(
-            ask(provider, history.get(), working_dir, session_id, config),
+            ask(
+                provider,
+                history.get(),
+                working_dir,
+                session_id,
+                config,
+                on_tool=_on_tool,
+            ),
         )
 
         if interrupted:

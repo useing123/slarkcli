@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 from pathlib import Path
@@ -5,22 +7,8 @@ from pathlib import Path
 from agents.context import PRUNE_THRESHOLD, prune
 from config import Config
 from providers.base import BaseProvider
-from tools.edit import EDIT_TOOLS, create_dir, move_to_garbage, str_replace, write_file
-from tools.index import INDEX_TOOLS, get_file_symbols, index_summary, search_symbol
-from tools.read import READ_TOOLS, outline, read_file, read_lines, tree
-from tools.run import (
-    RUN_TOOLS,
-    check_port,
-    kill_background,
-    run_background,
-    run_command,
-)
-from tools.search import SEARCH_TOOLS, find_definition, grep
-from tools.tasks import TASK_TOOLS, create_task, list_tasks, update_task
-
-ALL_TOOLS = (
-    READ_TOOLS + EDIT_TOOLS + SEARCH_TOOLS + RUN_TOOLS + TASK_TOOLS + INDEX_TOOLS
-)
+from tools.catalog import ALL_TOOLS
+from tools.runtime import execute_tool
 
 DONE_SIGNAL = "[DONE]"
 TRACE_DIR = Path.home() / ".slark" / "traces"
@@ -33,58 +21,64 @@ def estimate_cost(
     return input_tokens * cfg.price_in + output_tokens * cfg.price_out
 
 
-async def execute(name: str, inputs: dict, working_dir: Path, session_id: str) -> str:
-    match name:
-        case "read_file":
-            return read_file(inputs["path"], working_dir)
-        case "read_lines":
-            return read_lines(
-                inputs["path"], inputs["start"], inputs["end"], working_dir
-            )
-        case "tree":
-            return tree(inputs.get("path", "."), working_dir)
-        case "outline":
-            return outline(inputs["path"], working_dir)
-        case "write_file":
-            return write_file(inputs["path"], inputs["content"], working_dir)
-        case "str_replace":
-            return str_replace(
-                inputs["path"], inputs["old_str"], inputs["new_str"], working_dir
-            )
-        case "create_dir":
-            return create_dir(inputs["path"], working_dir)
-        case "grep":
-            return grep(inputs["pattern"], inputs.get("path", "."), working_dir)
-        case "find_definition":
-            return find_definition(inputs["name"], working_dir)
-        case "run_command":
-            return run_command(
-                inputs["command"], working_dir, inputs.get("stdin_input", "")
-            )
-        case "move_to_garbage":
-            return move_to_garbage(inputs["path"], working_dir, session_id)
-        case "run_background":
-            return run_background(inputs["command"], inputs["name"], working_dir)
-        case "kill_background":
-            return kill_background(inputs["name"])
-        case "check_port":
-            return check_port(inputs["port"])
-        case "search_symbol":
-            return await search_symbol(inputs["name"], working_dir)
-        case "get_file_symbols":
-            return await get_file_symbols(inputs["path"], working_dir)
-        case "index_summary":
-            return await index_summary(working_dir)
-        case "create_task":
-            return await create_task(
-                session_id, inputs["title"], inputs.get("description", "")
-            )
-        case "update_task":
-            return await update_task(session_id, inputs["task_id"], inputs["status"])
-        case "list_tasks":
-            return await list_tasks(session_id)
-        case _:
-            return json.dumps({"status": "error", "reason": f"Unknown tool {name}"})
+def _trace_context(session_id: str, iteration: int, ctx: list[dict]) -> None:
+    TRACE_DIR.mkdir(parents=True, exist_ok=True)
+    (TRACE_DIR / f"{session_id}_{iteration}.json").write_text(
+        json.dumps(ctx, indent=2, ensure_ascii=False)
+    )
+
+
+def _parse_tool_inputs(raw: str) -> dict:
+    try:
+        inputs = json.loads(raw)
+        if isinstance(inputs, dict):
+            return inputs
+    except Exception:
+        pass
+    return {}
+
+
+def _build_assistant_message(response: dict) -> dict:
+    return {
+        "role": "assistant",
+        "content": response["content"] or "",
+        "tool_calls": [
+            {
+                "id": tc.id,
+                "type": "function",
+                "function": {
+                    "name": tc.function.name,
+                    "arguments": tc.function.arguments,
+                },
+            }
+            for tc in response["tool_calls"]
+        ],
+    }
+
+
+async def _execute_tool_calls(
+    tool_calls,
+    working_dir: Path,
+    session_id: str,
+    on_tool=None,
+):
+    results = []
+
+    for tc in tool_calls:
+        name = tc.function.name
+        inputs = _parse_tool_inputs(tc.function.arguments)
+
+        if on_tool:
+            on_tool("start", name, inputs)
+
+        result = await execute_tool(name, inputs, working_dir, session_id)
+
+        if on_tool:
+            on_tool("end", name, result)
+
+        results.append((tc.id, result))
+
+    return results
 
 
 async def ask(
@@ -104,14 +98,13 @@ async def ask(
     while True:
         if total_in > PRUNE_THRESHOLD:
             ctx = await prune(
-                ctx, provider, current_task=messages[0].get("content", "")
+                ctx,
+                provider,
+                current_task=messages[0].get("content", "") if messages else "",
             )
 
         if os.getenv("SLARK_TRACE"):
-            TRACE_DIR.mkdir(parents=True, exist_ok=True)
-            (TRACE_DIR / f"{session_id}_{iteration}.json").write_text(
-                json.dumps(ctx, indent=2, ensure_ascii=False)
-            )
+            _trace_context(session_id, iteration, ctx)
 
         response = await provider.complete(messages=ctx, tools=ALL_TOOLS, stream=False)
 
@@ -131,40 +124,20 @@ async def ask(
         if iteration >= max_iter:
             return "Max iterations reached.", total_in, total_out
 
-        ctx.append(
-            {
-                "role": "assistant",
-                "content": content,
-                "tool_calls": [
-                    {
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments,
-                        },
-                    }
-                    for tc in response["tool_calls"]
-                ],
-            }
+        ctx.append(_build_assistant_message(response))
+
+        tool_results = await _execute_tool_calls(
+            response["tool_calls"],
+            working_dir,
+            session_id,
+            on_tool=on_tool,
         )
 
-        for tc in response["tool_calls"]:
-            name = tc.function.name
-
-            try:
-                inputs = json.loads(tc.function.arguments)
-                if not isinstance(inputs, dict):
-                    inputs = {}
-            except Exception:
-                inputs = {}
-
-            if on_tool:
-                on_tool(name, inputs)
-
-            try:
-                result = await execute(name, inputs, working_dir, session_id)
-            except Exception as e:
-                result = json.dumps({"status": "error", "reason": str(e)})
-
-            ctx.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+        for tool_id, result in tool_results:
+            ctx.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_id,
+                    "content": result,
+                }
+            )
