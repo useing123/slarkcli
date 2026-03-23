@@ -1,8 +1,3 @@
-"""
-In-memory registry of running workers.
-Orchestrator uses this to track, read and kill agents.
-"""
-
 import asyncio
 from dataclasses import dataclass, field
 from enum import Enum

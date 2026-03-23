@@ -84,7 +84,7 @@ async def execute(name: str, inputs: dict, working_dir: Path, session_id: str) -
         case "list_tasks":
             return await list_tasks(session_id)
         case _:
-            return f"Unknown tool: {name}"
+            return json.dumps({"status": "error", "reason": f"Unknown tool {name}"})
 
 
 async def ask(
@@ -94,10 +94,10 @@ async def ask(
     session_id: str,
     config: Config = None,
     on_tool: callable = None,
-    on_token: callable = None,
 ) -> tuple[str, int, int]:
     cfg = config or Config.load()
     ctx = list(messages)
+
     total_in, total_out = 0, 0
     iteration = 0
 
@@ -113,21 +113,7 @@ async def ask(
                 json.dumps(ctx, indent=2, ensure_ascii=False)
             )
 
-        # Workers (spawned by orchestrator) skip streaming to avoid output clutter
-        # Regular solo calls use streaming
-        is_worker = on_tool is not None
-        response = await provider.complete(
-            messages=ctx, tools=ALL_TOOLS, stream=not is_worker
-        )
-
-        # Only print token stats when not streaming (streaming already printed content)
-        if on_token:
-            on_token(response["input_tokens"], response["output_tokens"], len(ctx))
-        elif is_worker:
-            print(
-                f"  📊 {response['input_tokens']} in / {response['output_tokens']} out | ctx={len(ctx)}"
-            )
-        # streaming case: provider already printed content + reasoning live
+        response = await provider.complete(messages=ctx, tools=ALL_TOOLS, stream=False)
 
         total_in += response["input_tokens"]
         total_out += response["output_tokens"]
@@ -143,20 +129,7 @@ async def ask(
 
         max_iter = 10 if total_in > cfg.large_context else 20
         if iteration >= max_iter:
-            if total_in > cfg.large_context:
-                cost = estimate_cost(total_in, total_out, cfg)
-                confirm = (
-                    input(
-                        f"\n⚠️  Large context ({total_in} tokens | ~${cost:.4f}). Continue? [y/N] "
-                    )
-                    .strip()
-                    .lower()
-                )
-                if confirm != "y":
-                    return "Stopped by user.", total_in, total_out
-                iteration = 0
-            else:
-                return "Max iterations reached.", total_in, total_out
+            return "Max iterations reached.", total_in, total_out
 
         ctx.append(
             {
@@ -178,27 +151,20 @@ async def ask(
 
         for tc in response["tool_calls"]:
             name = tc.function.name
+
             try:
                 inputs = json.loads(tc.function.arguments)
                 if not isinstance(inputs, dict):
                     inputs = {}
-            except (json.JSONDecodeError, ValueError):
+            except Exception:
                 inputs = {}
 
             if on_tool:
                 on_tool(name, inputs)
-            else:
-                print(f"  🔧 {name}({inputs})")
 
             try:
                 result = await execute(name, inputs, working_dir, session_id)
-            except (KeyError, TypeError) as e:
-                result = json.dumps(
-                    {
-                        "status": "error",
-                        "tool": name,
-                        "reason": f"invalid arguments: {e}",
-                    }
-                )
+            except Exception as e:
+                result = json.dumps({"status": "error", "reason": str(e)})
 
             ctx.append({"role": "tool", "tool_call_id": tc.id, "content": result})

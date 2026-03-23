@@ -1,7 +1,3 @@
-"""
-Worker: a named agent that runs ask() with its own session and history.
-"""
-
 from pathlib import Path
 
 from memory.database import new_session, save_message
