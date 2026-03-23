@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 
 from agents.context import PRUNE_THRESHOLD, prune
+from agents.core.executor import execute_tool_calls
+from agents.core.messages import build_assistant_message
+from agents.core.trace import trace_context
 from config import Config
 from providers.base import BaseProvider
 from tools.catalog import ALL_TOOLS
-from tools.runtime import execute_tool
 
 DONE_SIGNAL = "[DONE]"
-TRACE_DIR = Path.home() / ".slark" / "traces"
 
 
 def estimate_cost(
@@ -19,66 +19,6 @@ def estimate_cost(
 ) -> float:
     cfg = config or Config.load()
     return input_tokens * cfg.price_in + output_tokens * cfg.price_out
-
-
-def _trace_context(session_id: str, iteration: int, ctx: list[dict]) -> None:
-    TRACE_DIR.mkdir(parents=True, exist_ok=True)
-    (TRACE_DIR / f"{session_id}_{iteration}.json").write_text(
-        json.dumps(ctx, indent=2, ensure_ascii=False)
-    )
-
-
-def _parse_tool_inputs(raw: str) -> dict:
-    try:
-        inputs = json.loads(raw)
-        if isinstance(inputs, dict):
-            return inputs
-    except Exception:
-        pass
-    return {}
-
-
-def _build_assistant_message(response: dict) -> dict:
-    return {
-        "role": "assistant",
-        "content": response["content"] or "",
-        "tool_calls": [
-            {
-                "id": tc.id,
-                "type": "function",
-                "function": {
-                    "name": tc.function.name,
-                    "arguments": tc.function.arguments,
-                },
-            }
-            for tc in response["tool_calls"]
-        ],
-    }
-
-
-async def _execute_tool_calls(
-    tool_calls,
-    working_dir: Path,
-    session_id: str,
-    on_tool=None,
-):
-    results = []
-
-    for tc in tool_calls:
-        name = tc.function.name
-        inputs = _parse_tool_inputs(tc.function.arguments)
-
-        if on_tool:
-            on_tool("start", name, inputs)
-
-        result = await execute_tool(name, inputs, working_dir, session_id)
-
-        if on_tool:
-            on_tool("end", name, result)
-
-        results.append((tc.id, result))
-
-    return results
 
 
 async def ask(
@@ -104,7 +44,7 @@ async def ask(
             )
 
         if os.getenv("SLARK_TRACE"):
-            _trace_context(session_id, iteration, ctx)
+            trace_context(session_id, iteration, ctx)
 
         response = await provider.complete(messages=ctx, tools=ALL_TOOLS, stream=False)
 
@@ -124,9 +64,9 @@ async def ask(
         if iteration >= max_iter:
             return "Max iterations reached.", total_in, total_out
 
-        ctx.append(_build_assistant_message(response))
+        ctx.append(build_assistant_message(response))
 
-        tool_results = await _execute_tool_calls(
+        tool_results = await execute_tool_calls(
             response["tool_calls"],
             working_dir,
             session_id,
