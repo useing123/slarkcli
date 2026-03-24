@@ -10,6 +10,7 @@ from agents.core.trace import trace_context
 from config import Config
 from config.loader import load_config
 from providers.base import BaseProvider
+from providers.types import ProviderResponse
 from tools.catalog import ALL_TOOLS
 
 DONE_SIGNAL = "[DONE]"
@@ -20,6 +21,24 @@ def estimate_cost(
 ) -> float:
     cfg = config or load_config()
     return input_tokens * cfg.price_in + output_tokens * cfg.price_out
+
+
+def build_assistant_message(response: ProviderResponse) -> dict:
+    return {
+        "role": "assistant",
+        "content": response.content,
+        "tool_calls": [
+            {
+                "id": tc.id,
+                "type": tc.type,
+                "function": {
+                    "name": tc.function.name,
+                    "arguments": tc.function.arguments,
+                },
+            }
+            for tc in (response.tool_calls or [])
+        ],
+    }
 
 
 async def ask(
@@ -47,28 +66,28 @@ async def ask(
         if os.getenv("SLARK_TRACE"):
             trace_context(session_id, iteration, ctx)
 
-        response = await provider.complete(messages=ctx, tools=ALL_TOOLS, stream=False)
+        response = await provider.complete(
+            messages=ctx,
+            tools=ALL_TOOLS,
+            stream=False,
+        )
 
-        total_in += response["input_tokens"]
-        total_out += response["output_tokens"]
+        total_in += response.input_tokens
+        total_out += response.output_tokens
         iteration += 1
 
-        content = response["content"] or ""
+        content = response.content or ""
 
         if DONE_SIGNAL in content:
             return content.replace(DONE_SIGNAL, "").strip(), total_in, total_out
 
-        if not response["tool_calls"]:
+        if not response.tool_calls:
             return content, total_in, total_out
-
-        max_iter = 10 if total_in > cfg.large_context else 20
-        if iteration >= max_iter:
-            return "Max iterations reached.", total_in, total_out
 
         ctx.append(build_assistant_message(response))
 
         tool_results = await execute_tool_calls(
-            response["tool_calls"],
+            response.tool_calls,
             working_dir,
             session_id,
             on_tool=on_tool,
