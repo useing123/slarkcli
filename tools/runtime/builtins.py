@@ -7,7 +7,7 @@ from tools.run import check_port, kill_background, run_background, run_command
 from tools.runtime.registry import register_tool
 from tools.search import find_definition, grep
 from tools.tasks import create_task, list_tasks, update_task
-
+from tools.git import git_status, git_diff, git_log, git_checkout_file, git_apply, git_show
 
 @register_tool("read_file")
 async def _read_file(inputs, working_dir, session_id):
@@ -109,3 +109,33 @@ async def _update_task(inputs, working_dir, session_id):
 @register_tool("list_tasks")
 async def _list_tasks(inputs, working_dir, session_id):
     return await list_tasks(session_id)
+
+
+@register_tool("git_status")
+async def _git_status(inputs, working_dir, session_id):
+    return git_status(working_dir)
+
+
+@register_tool("git_diff")
+async def _git_diff(inputs, working_dir, session_id):
+    return git_diff(inputs.get("path", ""), working_dir)
+
+
+@register_tool("git_log")
+async def _git_log(inputs, working_dir, session_id):
+    return git_log(inputs.get("n", 10), working_dir)
+
+
+@register_tool("git_checkout_file")
+async def _git_checkout_file(inputs, working_dir, session_id):
+    return git_checkout_file(inputs["path"], working_dir)
+
+
+@register_tool("git_apply")
+async def _git_apply(inputs, working_dir, session_id):
+    return git_apply(inputs["patch"], working_dir)
+
+
+@register_tool("git_show")
+async def _git_show(inputs, working_dir, session_id):
+    return git_show(inputs["ref"], working_dir)

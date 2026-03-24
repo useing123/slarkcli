@@ -10,20 +10,9 @@ async def execute_tool(
     handler = get_tool(name)
 
     if handler is None:
-        return json.dumps(
-            {
-                "status": "error",
-                "reason": f"Unknown tool {name}",
-            }
-        )
+        return json.dumps({"status": "error", "reason": f"Unknown tool {name}"})
 
     try:
         return await handler(inputs, working_dir, session_id)
     except Exception as e:
-        return json.dumps(
-            {
-                "status": "error",
-                "tool": name,
-                "reason": str(e),
-            }
-        )
+        return json.dumps({"status": "error", "tool": name, "reason": str(e)})

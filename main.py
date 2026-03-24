@@ -13,10 +13,16 @@ def parse_args():
         default=Path("."),
         help="Working directory (default: current directory)",
     )
+    parser.add_argument(
+        "--problem",
+        type=str,
+        default=None,
+        help="Problem statement for SWE-bench (non-interactive mode)",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
     working_dir = args.dir.resolve()
-    asyncio.run(start(working_dir))
+    asyncio.run(start(working_dir, problem=args.problem))

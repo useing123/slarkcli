@@ -60,7 +60,7 @@ async def _run_with_interrupt(coro, label: str = ""):
             pass
 
 
-async def start(working_dir: Path):
+async def start(working_dir: Path, problem: str | None = None):
     ctx = await bootstrap(working_dir)
 
     console.print(BANNER)
@@ -94,6 +94,22 @@ async def start(working_dir: Path):
         completer=SlarkCompleter(working_dir),
         complete_while_typing=True,
     )
+
+    if problem:
+        expanded_task, _ = expand_file_refs(problem, working_dir)
+        history.add_user(expanded_task)
+        await save_message(session_id, "user", problem)
+
+        result, interrupted = await _run_with_interrupt(
+            ask(provider, history.get(), working_dir, session_id, config),
+        )
+
+        if not interrupted:
+            answer, input_tokens, output_tokens = result
+            history.add_assistant(answer)
+            await save_message(session_id, "assistant", answer)
+
+        return
 
     while True:
         try:

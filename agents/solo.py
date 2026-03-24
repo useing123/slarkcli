@@ -11,7 +11,7 @@ from config import Config
 from config.loader import load_config
 from providers.base import BaseProvider
 from providers.types import ProviderResponse
-from tools.catalog import ALL_TOOLS
+from tools.schemas import ALL_TOOLS
 
 DONE_SIGNAL = "[DONE]"
 

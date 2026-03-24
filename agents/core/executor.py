@@ -6,7 +6,7 @@ from tools.runtime.executor import execute_tool
 
 async def execute_tool_calls(
     tool_calls, working_dir: Path, session_id: str, on_tool=None
-):
+) -> list[tuple[str, str]]:
     results = []
 
     for tc in tool_calls:
