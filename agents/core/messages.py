@@ -1,5 +1,7 @@
 import json
 
+from providers.types import ProviderResponse
+
 
 def parse_tool_inputs(raw: str) -> dict:
     try:
@@ -9,19 +11,19 @@ def parse_tool_inputs(raw: str) -> dict:
         return {}
 
 
-def build_assistant_message(response: dict) -> dict:
+def build_assistant_message(response: ProviderResponse) -> dict:
     return {
         "role": "assistant",
-        "content": response["content"] or "",
+        "content": response.content or "",
         "tool_calls": [
             {
                 "id": tc.id,
-                "type": "function",
+                "type": tc.type,
                 "function": {
                     "name": tc.function.name,
                     "arguments": tc.function.arguments,
                 },
             }
-            for tc in response["tool_calls"]
+            for tc in (response.tool_calls or [])
         ],
     }

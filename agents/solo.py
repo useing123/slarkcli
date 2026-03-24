@@ -10,7 +10,6 @@ from agents.core.trace import trace_context
 from config import Config
 from config.loader import load_config
 from providers.base import BaseProvider
-from providers.types import ProviderResponse
 from tools.schemas import ALL_TOOLS
 
 DONE_SIGNAL = "[DONE]"
@@ -21,24 +20,6 @@ def estimate_cost(
 ) -> float:
     cfg = config or load_config()
     return input_tokens * cfg.price_in + output_tokens * cfg.price_out
-
-
-def build_assistant_message(response: ProviderResponse) -> dict:
-    return {
-        "role": "assistant",
-        "content": response.content,
-        "tool_calls": [
-            {
-                "id": tc.id,
-                "type": tc.type,
-                "function": {
-                    "name": tc.function.name,
-                    "arguments": tc.function.arguments,
-                },
-            }
-            for tc in (response.tool_calls or [])
-        ],
-    }
 
 
 async def ask(
