@@ -74,7 +74,7 @@ Task table schema:
 ```sql
 tasks (
   id,
-  session_id,
+  working_dir,
   title,
   description,
   status,

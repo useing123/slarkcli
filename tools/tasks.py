@@ -121,8 +121,9 @@ TASK_TOOLS = [
                 "properties": {
                     "title": {"type": "string"},
                     "description": {"type": "string"},
+                    "project_dir": {"type": "string"},
                 },
-                "required": ["title"],
+                "required": ["title", "project_dir"],
             },
         },
     },

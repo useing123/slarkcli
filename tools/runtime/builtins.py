@@ -1,13 +1,27 @@
 from __future__ import annotations
 
 from tools.edit import create_dir, move_to_garbage, str_replace, write_file
+from tools.git import (
+    git_apply,
+    git_checkout_file,
+    git_diff,
+    git_log,
+    git_show,
+    git_status,
+)
 from tools.index import get_file_symbols, index_summary, search_symbol
 from tools.read import outline, read_file, read_lines, tree
-from tools.run import check_port, kill_background, run_background, run_command
+from tools.run import (
+    check_port,
+    kill_background,
+    kill_port,
+    run_background,
+    run_command,
+)
 from tools.runtime.registry import register_tool
 from tools.search import find_definition, grep
 from tools.tasks import create_task, list_tasks, update_task
-from tools.git import git_status, git_diff, git_log, git_checkout_file, git_apply, git_show
+
 
 @register_tool("read_file")
 async def _read_file(inputs, working_dir, session_id):
@@ -98,17 +112,19 @@ async def _index_summary(inputs, working_dir, session_id):
 
 @register_tool("create_task")
 async def _create_task(inputs, working_dir, session_id):
-    return await create_task(session_id, inputs["title"], inputs.get("description", ""))
+    return await create_task(
+        str(working_dir), inputs["title"], inputs.get("description", "")
+    )
 
 
 @register_tool("update_task")
 async def _update_task(inputs, working_dir, session_id):
-    return await update_task(session_id, inputs["task_id"], inputs["status"])
+    return await update_task(str(working_dir), inputs["task_id"], inputs["status"])
 
 
 @register_tool("list_tasks")
 async def _list_tasks(inputs, working_dir, session_id):
-    return await list_tasks(session_id)
+    return await list_tasks(str(working_dir))
 
 
 @register_tool("git_status")
@@ -139,3 +155,8 @@ async def _git_apply(inputs, working_dir, session_id):
 @register_tool("git_show")
 async def _git_show(inputs, working_dir, session_id):
     return git_show(inputs["ref"], working_dir)
+
+
+@register_tool("kill_port")
+async def _kill_port(inputs, working_dir, session_id):
+    return kill_port(inputs["port"])

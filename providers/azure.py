@@ -24,26 +24,30 @@ class AzureProvider:
         tools: Sequence[dict] | None,
         stream: bool = False,
     ) -> ProviderResponse:
-        kwargs = dict(
-            model=self.model,
-            messages=list(messages),
-            tools=list(tools) if tools else None,
-            tool_choice="auto" if tools else None,
-        )
+        kwargs: dict = {
+            "model": self.model,
+            "messages": list(messages),
+        }
 
-        response = None
+        if tools:
+            kwargs["tools"] = list(tools)
+            kwargs["tool_choice"] = "auto"
 
-        for delay in RETRY_DELAYS + [None]:
+        last_error = None
+
+        for attempt, delay in enumerate(RETRY_DELAYS + [None]):
             try:
                 response = await self.client.chat.completions.create(**kwargs)
                 break
-            except RateLimitError:
+            except RateLimitError as e:
+                last_error = e
                 if delay is None:
-                    raise
+                    raise RuntimeError(
+                        f"Rate limit exceeded after {attempt} retries"
+                    ) from e
                 await asyncio.sleep(delay)
-
-        if response is None:
-            raise RuntimeError("Azure provider failed")
+        else:
+            raise RuntimeError("Azure provider failed") from last_error
 
         msg = response.choices[0].message if response.choices else None
         usage = response.usage

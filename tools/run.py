@@ -1,4 +1,5 @@
 import json
+import os
 import signal
 import subprocess
 import time
@@ -142,6 +143,30 @@ def check_port(port: int) -> str:
         return _err("check_port", "timeout", port=port)
 
 
+def kill_port(port: int) -> str:
+    try:
+        result = subprocess.run(
+            f"lsof -ti:{port}",
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        pids = result.stdout.strip().splitlines()
+        if not pids:
+            return _err("kill_port", "not_found", port=port)
+
+        for pid in pids:
+            try:
+                os.kill(int(pid), signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+
+        return _ok("kill_port", port=port, killed_pids=pids)
+    except subprocess.TimeoutExpired:
+        return _err("kill_port", "timeout", port=port)
+
+
 RUN_TOOLS = [
     {
         "type": "function",
@@ -196,6 +221,18 @@ RUN_TOOLS = [
         "function": {
             "name": "check_port",
             "description": "Check if a local server is running on a port.",
+            "parameters": {
+                "type": "object",
+                "properties": {"port": {"type": "integer"}},
+                "required": ["port"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "kill_port",
+            "description": "Kill any process occupying a specific port. Use this before starting a server if the port is already in use.",
             "parameters": {
                 "type": "object",
                 "properties": {"port": {"type": "integer"}},

@@ -8,13 +8,16 @@ def normalize_tool_calls(raw_calls) -> list[ToolCall]:
     result: list[ToolCall] = []
 
     for raw in raw_calls:
+        func = getattr(raw, "function", None)
+        if func is None:
+            continue
         result.append(
             ToolCall(
                 id=getattr(raw, "id", ""),
                 type="function",
                 function=ToolCallFunction(
-                    name=raw.function.name,
-                    arguments=raw.function.arguments,
+                    name=getattr(func, "name", ""),
+                    arguments=getattr(func, "arguments", "{}"),
                 ),
             )
         )
