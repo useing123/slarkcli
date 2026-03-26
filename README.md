@@ -1,21 +1,9 @@
 # Slark
 > Open source AI coding agent. Terminal-first, built for developers who want control.
 
-## Why Slark?
-
-Most coding agents have the same problems:
-- They read your `.env` files and secrets
-- No real task tracking — everything is a black box
-- You don't own your data and can't fine-tune on it
-- Linear execution with no orchestration
-
-Slark is an attempt to do this differently.
-
 ## Status
 
 This is a **v0.0.1 personal build** — I'm building this for myself and open sourcing it as I go. If you want to try it, contribute ideas, or just follow along — welcome.
-
-> ⚠️ Only OpenRouter is supported as a provider right now.
 
 ## Setup
 
@@ -54,6 +42,7 @@ SLARK_TRACE=1 uv run python main.py --dir /path/to/your/project
 >> /clear         — wipe current session messages from memory and DB
 >> /init          — re-index the project
 >> /exit          — quit
+>> /settings
 ```
 
 **File context:** type `@filename` in any message to attach a file:
@@ -69,27 +58,27 @@ Tab completion works for both `@filename` and `/commands`.
 
 ## What works right now
 
-### 🔒 Security first
+### Security first
 - Never reads `.env`, `.git/`, `~/.ssh/` or any secrets — hardcoded, not prompt-based
 - Dangerous commands require explicit user confirmation
 - `move_to_garbage` instead of `rm` — deleted files are always recoverable from `~/.slark/garbage/`
 
-### 🗂️ Sessions
+### Sessions
 - Full session history saved to SQLite at `~/.slark/slark.db`
 - Switch between sessions and continue from where you left off
 - Sessions are scoped per project directory — different projects don't mix
 
-### 🗂️ Task board
+### Task board
 - Agent tracks its own progress using structured tasks
 - Every subtask is created, updated, and verified before moving on
 - Stored in SQLite — query your agent's work history anytime
 
-### 🧠 Context management
+### Context management
 - Automatic context pruning when token budget gets large
 - AST-based project index — `search_symbol`, `get_file_symbols`, `index_summary`
 - Session traces saved locally at `~/.slark/traces/`
 
-### 🛠️ Tool suite
+### Tool suite
 - `read_file`, `read_lines`, `tree`, `outline` — smart file reading with 150-line truncation
 - `write_file`, `str_replace`, `create_dir`, `move_to_garbage` — safe editing
 - `grep`, `find_definition` — code search across Python, TS, JS, Go, Rust
@@ -97,7 +86,7 @@ Tab completion works for both `@filename` and `/commands`.
 - `create_task`, `update_task`, `list_tasks` — task management
 - `search_symbol`, `get_file_symbols`, `index_summary` — AST index
 
-### 📊 Dataset collection
+### Dataset collection
 - All conversations saved to SQLite for fine-tuning
 - Export anytime
 
