@@ -136,6 +136,7 @@ TASK_TOOLS = [
                 "type": "object",
                 "properties": {
                     "task_id": {"type": "integer"},
+                    "project_dir": {"type": "string"},
                     "status": {
                         "type": "string",
                         "enum": [
@@ -147,7 +148,7 @@ TASK_TOOLS = [
                         ],
                     },
                 },
-                "required": ["task_id", "status"],
+                "required": ["task_id", "project_dir", "status"],
             },
         },
     },
