@@ -1,4 +1,6 @@
 import asyncio
+import json
+import re
 from typing import Sequence
 
 from openai import AsyncAzureOpenAI, RateLimitError
@@ -7,6 +9,31 @@ from providers.types import ProviderResponse
 from providers.utils import normalize_tool_calls
 
 RETRY_DELAYS = [5, 15, 30, 60, 120]
+
+_RAW_TOOL_RE = re.compile(
+    r"<｜tool▁call▁begin｜>function<｜tool▁sep｜>(\w+)\s*\njson\s*(\{.*?\})\s*(?:<｜tool▁call▁end｜>)?",
+    re.DOTALL,
+)
+
+
+def _parse_raw_tool_calls(content: str) -> list[dict] | None:
+    matches = _RAW_TOOL_RE.findall(content)
+    if not matches:
+        return None
+    calls = []
+    for i, (name, args_str) in enumerate(matches):
+        try:
+            args = json.loads(args_str)
+        except json.JSONDecodeError:
+            args = {}
+        calls.append(
+            {
+                "id": f"fallback_{i}",
+                "type": "function",
+                "function": {"name": name, "arguments": json.dumps(args)},
+            }
+        )
+    return calls
 
 
 class AzureProvider:
@@ -54,15 +81,21 @@ class AzureProvider:
 
         if not msg:
             return ProviderResponse(
-                content="",
-                tool_calls=[],
-                input_tokens=0,
-                output_tokens=0,
+                content="", tool_calls=[], input_tokens=0, output_tokens=0
             )
 
+        content = msg.content or ""
+        tool_calls = normalize_tool_calls(msg.tool_calls)
+
+        if not tool_calls and content:
+            raw = _parse_raw_tool_calls(content)
+            if raw:
+                tool_calls = normalize_tool_calls(raw)
+                content = _RAW_TOOL_RE.sub("", content).strip()
+
         return ProviderResponse(
-            content=msg.content or "",
-            tool_calls=normalize_tool_calls(msg.tool_calls),
+            content=content,
+            tool_calls=tool_calls,
             input_tokens=usage.prompt_tokens if usage else 0,
             output_tokens=usage.completion_tokens if usage else 0,
             reasoning=getattr(msg, "reasoning_content", None),
