@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from agents.context import PRUNE_THRESHOLD, prune
+from agents.context import prune
 from agents.core.executor import execute_tool_calls
 from agents.core.messages import build_assistant_message
 from agents.core.trace import trace_context
@@ -37,11 +37,19 @@ async def ask(
     iteration = 0
 
     while True:
-        if total_in > PRUNE_THRESHOLD:
+        if iteration >= cfg.max_iterations:
+            return (
+                f"[stopped: reached max_iterations ({cfg.max_iterations})]",
+                total_in,
+                total_out,
+            )
+
+        if total_in > cfg.prune_threshold:
             ctx = await prune(
                 ctx,
                 provider,
                 current_task=messages[0].get("content", "") if messages else "",
+                prune_threshold=cfg.prune_threshold,
             )
 
         if os.getenv("SLARK_TRACE"):

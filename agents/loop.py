@@ -100,9 +100,13 @@ async def start(working_dir: Path, problem: str | None = None):
         history.add_user(expanded_task)
         await save_message(session_id, "user", problem)
 
-        result, interrupted = await _run_with_interrupt(
-            ask(provider, history.get(), working_dir, session_id, config),
-        )
+        try:
+            result, interrupted = await _run_with_interrupt(
+                ask(provider, history.get(), working_dir, session_id, config),
+            )
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+            return
 
         if not interrupted:
             answer, input_tokens, output_tokens = result
@@ -149,7 +153,7 @@ async def start(working_dir: Path, problem: str | None = None):
                     provider = result["provider"]
                     ctx["config"] = config
                     console.print(
-                        f"[green]✓ Provider switched to [bold]{config.provider}[/bold] / {config.model}[/green]"
+                        f"[green]✓ Settings updated — model: [bold]{config.model}[/bold][/green]"
                     )
                 continue
 
@@ -245,16 +249,22 @@ async def start(working_dir: Path, problem: str | None = None):
                 else:
                     console.print(f"[dim]{data}[/dim]")
 
-        result, interrupted = await _run_with_interrupt(
-            ask(
-                provider,
-                history.get(),
-                working_dir,
-                session_id,
-                config,
-                on_tool=_on_tool,
-            ),
-        )
+        try:
+            result, interrupted = await _run_with_interrupt(
+                ask(
+                    provider,
+                    history.get(),
+                    working_dir,
+                    session_id,
+                    config,
+                    on_tool=_on_tool,
+                ),
+            )
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+            if history.messages and history.messages[-1]["role"] == "user":
+                history.messages.pop()
+            continue
 
         if interrupted:
             if history.messages and history.messages[-1]["role"] == "user":

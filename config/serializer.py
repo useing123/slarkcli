@@ -9,33 +9,19 @@ def save_config(config) -> None:
     CONFIG_PATH.write_text(
         f"""
 [agent]
-model    = "{config.model}"
-provider = "{config.provider}"
-
-[orchestrator]
-model    = "{config.orchestrator_model}"
-provider = "{config.orchestrator_provider}"
+model          = "{config.model}"
+max_iterations = {config.max_iterations}
 
 [keys]
 openrouter = "{config.openrouter_key}"
-
-[azure]
-api_key     = "{config.azure_key}"
-endpoint    = "{config.azure_endpoint}"
-deployment  = "{config.azure_deployment}"
-api_version = "{config.azure_api_version}"
 
 [context]
 prune_threshold = {config.prune_threshold}
 large_context   = {config.large_context}
 
 [pricing.openrouter]
-price_in  = {0.27 / 1_000_000}
-price_out = {0.79 / 1_000_000}
-
-[pricing.azure]
-price_in  = {0.27 / 1_000_000}
-price_out = {0.79 / 1_000_000}
+price_in  = {config.price_in}
+price_out = {config.price_out}
 """.strip()
     )
 

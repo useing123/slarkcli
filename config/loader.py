@@ -17,23 +17,14 @@ def load_config() -> Config:
         data = tomllib.load(f)
 
     agent = data.get("agent", {})
-    orch = data.get("orchestrator", {})
     keys = data.get("keys", {})
-    azure = data.get("azure", {})
     ctx = data.get("context", {})
-    pricing = data.get("pricing", {}).get(agent.get("provider", "openrouter"), {})
+    pricing = data.get("pricing", {}).get("openrouter", {})
 
     return Config(
-        model=agent.get("model", "deepseek/deepseek-v3.2"),
-        provider=agent.get("provider", "openrouter"),
-        orchestrator_model=orch.get("model", "deepseek/deepseek-r1-0528"),
-        orchestrator_provider=orch.get("provider", "openrouter"),
+        model=agent.get("model", "stealth/ox-alpha"),
         openrouter_key=keys.get("openrouter", "") or env_or_key,
-        azure_key=azure.get("api_key", "") or os.getenv("AZURE_OPENAI_API_KEY", ""),
-        azure_endpoint=azure.get("endpoint", "")
-        or os.getenv("AZURE_OPENAI_ENDPOINT", ""),
-        azure_deployment=azure.get("deployment", "DeepSeek-V3.2"),
-        azure_api_version=azure.get("api_version", "2024-12-01-preview"),
+        max_iterations=agent.get("max_iterations", 20),
         prune_threshold=ctx.get("prune_threshold", 80_000),
         large_context=ctx.get("large_context", 50_000),
         price_in=pricing.get("price_in", 0.27 / 1_000_000),

@@ -3,18 +3,11 @@ from dataclasses import dataclass
 
 @dataclass
 class Config:
-    model: str = "deepseek/deepseek-v3.2"
-    provider: str = "openrouter"
-
-    orchestrator_model: str = "deepseek/deepseek-r1-0528"
-    orchestrator_provider: str = "openrouter"
+    model: str = "stealth/ox-alpha"
 
     openrouter_key: str = ""
 
-    azure_key: str = ""
-    azure_endpoint: str = ""
-    azure_deployment: str = "DeepSeek-V3.2"
-    azure_api_version: str = "2024-12-01-preview"
+    max_iterations: int = 20
 
     prune_threshold: int = 80_000
     large_context: int = 50_000

@@ -1,11 +1,14 @@
 import json
 import os
+import re
 import signal
 import subprocess
 import time
 from pathlib import Path
 
-BLACKLIST = {
+# Whole-word command/argument names, matched on word boundaries so e.g.
+# "killtest.sh" or "npm run killtest" doesn't falsely match "kill".
+BLACKLIST_WORDS = {
     "rm",
     "rmdir",
     "sudo",
@@ -23,9 +26,18 @@ BLACKLIST = {
     "reboot",
     "kill",
     "pkill",
+}
+
+# Shell-syntax patterns, matched as plain substrings (word boundaries don't
+# apply to punctuation like this).
+BLACKLIST_PATTERNS = {
     "> /dev/",
     "| bash",
 }
+
+_BLACKLIST_WORD_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(w) for w in BLACKLIST_WORDS) + r")\b"
+)
 
 _background: dict[str, subprocess.Popen] = {}
 
@@ -39,7 +51,10 @@ def _err(tool: str, reason: str, **kwargs) -> str:
 
 
 def _is_blacklisted(command: str) -> str | None:
-    for term in BLACKLIST:
+    match = _BLACKLIST_WORD_RE.search(command)
+    if match:
+        return match.group(0)
+    for term in BLACKLIST_PATTERNS:
         if term in command:
             return term
     return None

@@ -98,18 +98,6 @@ async def clear_tasks(project_dir: str) -> str:
     return _ok("clear_tasks")
 
 
-async def close_abandoned_tasks(project_dir: str):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            """UPDATE tasks
-               SET status = 'abandoned'
-               WHERE project_dir = ?
-               AND status IN ('pending', 'in_progress')""",
-            (project_dir,),
-        )
-        await db.commit()
-
-
 TASK_TOOLS = [
     {
         "type": "function",

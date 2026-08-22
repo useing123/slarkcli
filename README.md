@@ -105,8 +105,8 @@ Auto-generated at `~/.slark/config.toml` on first run:
 
 ```toml
 [agent]
-model = "deepseek/deepseek-v3.2"
-provider = "openrouter"
+model          = "stealth/ox-alpha"
+max_iterations = 20
 
 [keys]
 openrouter = "sk-..."

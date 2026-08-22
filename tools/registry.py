@@ -1,8 +1,17 @@
 import asyncio
 import inspect
+import json
 from pathlib import Path
 
 from tools.edit import create_dir, move_to_garbage, str_replace, write_file
+from tools.git import (
+    git_apply,
+    git_checkout_file,
+    git_diff,
+    git_log,
+    git_show,
+    git_status,
+)
 from tools.index import get_file_symbols, index_summary, search_symbol
 from tools.read import outline, read_file, read_lines, tree
 from tools.run import (
@@ -13,7 +22,7 @@ from tools.run import (
     run_command,
 )
 from tools.search import find_definition, grep
-from tools.tasks import create_task, list_tasks, update_task
+from tools.tasks import clear_tasks, create_task, list_tasks, update_task
 
 SYNC_TOOLS = {
     "read_file": read_file,
@@ -31,6 +40,12 @@ SYNC_TOOLS = {
     "kill_background": kill_background,
     "check_port": check_port,
     "kill_port": kill_port,
+    "git_status": git_status,
+    "git_diff": git_diff,
+    "git_log": git_log,
+    "git_checkout_file": git_checkout_file,
+    "git_apply": git_apply,
+    "git_show": git_show,
 }
 
 ASYNC_TOOLS = {
@@ -40,6 +55,7 @@ ASYNC_TOOLS = {
     "create_task": create_task,
     "update_task": update_task,
     "list_tasks": list_tasks,
+    "clear_tasks": clear_tasks,
 }
 
 
@@ -57,7 +73,9 @@ async def execute_tool(name: str, inputs: dict, working_dir, session_id) -> str:
     fn = SYNC_TOOLS.get(name) or ASYNC_TOOLS.get(name)
 
     if not fn:
-        return f"Unknown tool: {name}"
+        return json.dumps(
+            {"status": "error", "tool": name, "reason": f"Unknown tool: {name}"}
+        )
 
     try:
         injected = _inject(fn, inputs, working_dir, session_id)
@@ -65,4 +83,4 @@ async def execute_tool(name: str, inputs: dict, working_dir, session_id) -> str:
             return await fn(**injected)
         return fn(**injected)
     except Exception as e:
-        return f"Tool error: {name}: {e}"
+        return json.dumps({"status": "error", "tool": name, "reason": str(e)})

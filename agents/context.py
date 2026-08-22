@@ -115,9 +115,10 @@ async def prune(
     ctx: list[dict[str, Any]],
     provider: BaseProvider,
     current_task: str = "",
+    prune_threshold: int = PRUNE_THRESHOLD,
 ) -> list[dict[str, Any]]:
     estimated = _estimate_tokens(ctx)
-    if estimated < PRUNE_THRESHOLD:
+    if estimated < prune_threshold:
         return ctx
 
     candidates = _find_candidates(ctx)
